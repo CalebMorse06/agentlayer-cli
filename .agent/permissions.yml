@@ -1,0 +1,28 @@
+# AgentLayer permissions configuration
+version: "1"
+
+# Approval mode: "manual" | "on-request" | "never"
+#   manual      - approve every action before it runs
+#   on-request  - provider prompts for approval on risky actions
+#   never       - no approval gates (use carefully)
+approvalMode: "on-request"
+
+# Paths the agent is allowed to modify (empty = no restriction)
+allowedPaths: []
+
+# Paths the agent must never modify
+deniedPaths:
+  - ".env"
+  - ".env.*"
+  - "*.pem"
+  - "*.key"
+  - "secrets/**"
+
+# Shell commands the agent is allowed to run (empty = no restriction)
+allowedCommands: []
+
+# Shell commands the agent must never run
+deniedCommands: []
+
+# Network mode: "allow" | "deny" | "prompt"
+networkMode: "allow"

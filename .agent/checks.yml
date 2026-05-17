@@ -1,0 +1,29 @@
+# AgentLayer check presets
+# Define named groups of shell commands to run inside the worktree after a task.
+version: "1"
+
+presets:
+  quick:
+    timeout: 60
+    failFast: true
+    commands: []
+    # commands:
+    #   - "npm run lint"
+
+  default:
+    timeout: 120
+    failFast: false
+    commands: []
+    # commands:
+    #   - "npm run lint"
+    #   - "npm test"
+
+  full:
+    timeout: 300
+    failFast: false
+    commands: []
+    # commands:
+    #   - "npm run lint"
+    #   - "npm run typecheck"
+    #   - "npm test"
+    #   - "npm run build"

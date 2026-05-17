@@ -1,16 +1,41 @@
 {
-  "name": "agentlayer",
+  "name": "agentlayer-cli",
   "version": "0.1.0",
   "description": "Repo-local runtime for running AI coding agents in isolated Git worktrees",
   "main": "dist/cli.js",
   "bin": {
     "agentlayer": "dist/cli.js"
   },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/cli.ts",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "prepublishOnly": "pnpm build"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CalebMorse06/agentlayer-cli.git"
+  },
+  "homepage": "https://github.com/CalebMorse06/agentlayer-cli",
+  "bugs": {
+    "url": "https://github.com/CalebMorse06/agentlayer-cli/issues"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "claude",
+    "codex",
+    "git",
+    "worktree",
+    "cli",
+    "coding-agent",
+    "developer-tools"
+  ],
   "dependencies": {
     "commander": "^12.1.0",
     "picocolors": "^1.1.0",

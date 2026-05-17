@@ -1,0 +1,23 @@
+# AgentLayer runtime configuration
+version: "1"
+
+providers:
+  claude:
+    enabled: true
+  codex:
+    enabled: true
+
+# Where Git worktrees are created (relative to repo root)
+worktreeRoot: ".agent/worktrees"
+
+# Prefix for branches created by agentlayer
+branchPrefix: "agent/"
+
+# Execution backend: "host" or "devcontainer"
+backend: "host"
+
+# Default provider when --provider is not specified
+defaultProvider: "claude"
+
+# Default check preset to run after each task
+defaultCheckPreset: "default"
