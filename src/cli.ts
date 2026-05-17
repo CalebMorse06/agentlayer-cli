@@ -9,6 +9,7 @@ import { summaryCommand } from './commands/summary';
 import { checkCommand } from './commands/check';
 import { rollbackCommand } from './commands/rollback';
 import { cleanCommand } from './commands/clean';
+import { memoryInitCommand } from './commands/memory';
 import { error } from './util/output';
 
 function handle(fn: () => Promise<void>): void {
@@ -82,5 +83,16 @@ program
   .description('Clean up the worktree while keeping the run record and logs')
   .option('--no-keep-logs', 'Also remove stdout/stderr log files')
   .action((run: string, opts) => handle(() => cleanCommand(run, opts)));
+
+// memory subcommands
+const memory = program
+  .command('memory')
+  .description('Manage repo memory docs in .agent/memory/');
+
+memory
+  .command('init')
+  .description('Auto-generate memory docs by running Claude against your codebase')
+  .option('--force', 'Overwrite docs that have already been customized')
+  .action((opts) => handle(() => memoryInitCommand(opts)));
 
 program.parse(process.argv);

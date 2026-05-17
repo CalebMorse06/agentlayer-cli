@@ -41,22 +41,20 @@ AgentLayer is that layer. It gives your repo one consistent way to:
 ## Quick start
 
 ```bash
-# Install
-cd agentlayer
-pnpm install && pnpm build
-pnpm link --global
+npm i -g agentlayer-cli
 
-# Initialize in any Git repo
 cd your-project
 agentlayer init
 
-# Run a task
+# Let Claude read your codebase and write the memory docs automatically
+agentlayer memory init
+
+# Run a task — the agent now has real context about your repo
 agentlayer run "add input validation to the signup form" --provider claude
 
 # Inspect the result
 agentlayer diff <run-id>
 agentlayer summary <run-id>
-agentlayer check <run-id>
 
 # Keep it or discard it
 agentlayer rollback <run-id>
@@ -67,6 +65,7 @@ agentlayer rollback <run-id>
 | Command | What it does |
 |---|---|
 | `agentlayer init` | Scaffold `.agent/` config, memory docs, and check presets in the current Git repo |
+| `agentlayer memory init` | Run Claude once against your codebase to auto-generate all four memory docs |
 | `agentlayer run "task" --provider claude\|codex` | Create a worktree, build a context packet, run the agent, capture all artifacts |
 | `agentlayer list` | List all runs with status, provider, and branch |
 | `agentlayer logs <run>` | Show stdout log (add `--stderr` or `--events` for other log types) |
@@ -114,11 +113,36 @@ After `agentlayer run`, each run directory contains:
 
 Every artifact is plain text. Nothing is hidden in a database.
 
+## Memory docs
+
+The memory docs in `.agent/memory/` are the contract between you and the agent. They are plain Markdown files you own and version-control.
+
+| File | Purpose |
+|---|---|
+| `architecture.md` | What the project is, how it's structured, main components |
+| `conventions.md` | Naming rules, how to run/test locally, import patterns |
+| `known-issues.md` | Known bugs, tech debt, sharp edges |
+| `decisions.md` | Key architectural decisions and their rationale |
+
+**`agentlayer memory init`** runs Claude once against your codebase — reading your file tree, git history, package.json, and entry points — and writes a first draft of all four docs automatically. It takes about 30 seconds.
+
+```bash
+agentlayer memory init
+# → writes .agent/memory/architecture.md
+# → writes .agent/memory/conventions.md
+# → writes .agent/memory/known-issues.md
+# → writes .agent/memory/decisions.md
+```
+
+Review and edit the output. Then every subsequent `agentlayer run` will include that context in the packet handed to the agent — without you having to re-explain your codebase every time.
+
+Run `agentlayer memory init --force` to regenerate after major refactors.
+
 ## Context packets
 
 AgentLayer does not dump your entire repo into the agent prompt.
 
-Instead, it builds a small, explicit context packet from:
+Each run builds a small, explicit context packet from:
 
 - the task instruction
 - your repo memory docs (`.agent/memory/`)
@@ -126,8 +150,6 @@ Instead, it builds a small, explicit context packet from:
 - the current `git status`
 - your active permission policy
 - the check commands that define "done"
-
-You control the memory docs. You edit them. They are the contract between you and the agent.
 
 ## Providers
 
@@ -205,11 +227,11 @@ Worktrees isolate Git state. They do not isolate the host machine. The agent sti
 ## Roadmap
 
 - [x] `agentlayer init`
+- [x] `agentlayer memory init` — auto-generate memory docs with Claude
 - [x] `agentlayer run` with Claude and Codex adapters
 - [x] `agentlayer list`, `logs`, `diff`, `summary`, `check`, `rollback`, `clean`
 - [ ] `agentlayer pr` — push branch and open a GitHub PR via Octokit
 - [ ] `devcontainer` backend for stronger isolation
-- [ ] Partial run ID resolution improvements
 - [ ] Windows path handling polish
 
 ## Status
