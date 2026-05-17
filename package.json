@@ -1,0 +1,29 @@
+{
+  "name": "agentlayer",
+  "version": "0.1.0",
+  "description": "Repo-local runtime for running AI coding agents in isolated Git worktrees",
+  "main": "dist/cli.js",
+  "bin": {
+    "agentlayer": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/cli.ts",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "picocolors": "^1.1.0",
+    "yaml": "^2.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}
