@@ -8,10 +8,7 @@ export const codexAdapter: ProviderAdapter = {
 
   async isAvailable(): Promise<boolean> {
     try {
-      execFileSync('codex', ['--version'], {
-        stdio: 'ignore',
-        timeout: 5000,
-      });
+      execFileSync('codex', ['--version'], { stdio: 'ignore', timeout: 5000 });
       return true;
     } catch {
       return false;
@@ -19,30 +16,25 @@ export const codexAdapter: ProviderAdapter = {
   },
 
   buildInvocation(input: ProviderRunInput): SpawnSpec {
-    // Write context to AGENT_CONTEXT.md in the worktree.
+    // Write context to AGENT_CONTEXT.md — Codex will be told to read it.
     const contextPath = path.join(input.worktreePath, 'AGENT_CONTEXT.md');
     fs.writeFileSync(contextPath, input.contextPacket, 'utf-8');
 
-    const args: string[] = [];
-
-    // --full-auto skips all approval prompts. Only when approvalMode is "never".
     if (input.approvalMode === 'never') {
-      args.push('--full-auto');
+      return {
+        cmd: 'codex',
+        args: ['--full-auto', `Read AGENT_CONTEXT.md for context. Task: ${input.task}`],
+        cwd: input.worktreePath,
+        interactive: false,
+      };
     }
 
-    // Codex accepts the task as a positional argument.
-    const prompt = [
-      'Read AGENT_CONTEXT.md in the current directory for full context.',
-      '',
-      `Task: ${input.task}`,
-    ].join('\n');
-
-    args.push(prompt);
-
+    // Interactive: codex starts a session; user steers it.
     return {
       cmd: 'codex',
-      args,
+      args: [`Read AGENT_CONTEXT.md for context. Task: ${input.task}`],
       cwd: input.worktreePath,
+      interactive: true,
     };
   },
 };

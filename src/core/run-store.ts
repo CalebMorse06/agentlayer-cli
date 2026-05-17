@@ -26,6 +26,8 @@ export interface RunRecord {
   changedFilesCount?: number;
   checkStatus?: 'passed' | 'failed' | 'skipped';
   prUrl?: string;
+  mergedAt?: string;
+  mergedInto?: string;
 }
 
 export function writeRunRecord(repoRoot: string, record: RunRecord): void {

@@ -67,13 +67,19 @@ agentlayer rollback <run-id>
 | `agentlayer init` | Scaffold `.agent/` config, memory docs, and check presets in the current Git repo |
 | `agentlayer memory init` | Run Claude once against your codebase to auto-generate all four memory docs |
 | `agentlayer run "task" --provider claude\|codex` | Create a worktree, build a context packet, run the agent, capture all artifacts |
-| `agentlayer list` | List all runs with status, provider, and branch |
-| `agentlayer logs <run>` | Show stdout log (add `--stderr` or `--events` for other log types) |
+| `agentlayer list` | List all runs (`--status completed`, `--json` for scripting) |
+| `agentlayer logs <run>` | Show stdout log (`--stderr`, `--events`, `--follow` to tail a live run) |
 | `agentlayer diff <run>` | Show the git diff for the run (add `--stat` or `--name-only`) |
 | `agentlayer summary <run>` | Show the run summary (add `--handoff` for full handoff notes) |
 | `agentlayer check <run>` | Run the configured checks inside the run worktree |
+| `agentlayer rerun <run>` | Start a new run with the same task (`--task "..."` to override) |
+| `agentlayer open <run>` | Open the run worktree in your editor (auto-detects VS Code, Cursor, Zed…) |
+| `agentlayer merge <run>` | Merge the run branch into the current branch (`--squash` to squash) |
+| `agentlayer pr <run>` | Push the run branch and open a GitHub PR (requires `gh` on PATH) |
 | `agentlayer rollback <run>` | Remove the worktree and local branch; keep the run record |
 | `agentlayer clean <run>` | Remove the worktree; keep the run record, diff, and logs |
+| `agentlayer context "task"` | Preview the exact context packet the agent would receive for a task |
+| `agentlayer memory show` | Print all memory docs to stdout |
 
 ## What gets created
 
@@ -156,10 +162,10 @@ Each run builds a small, explicit context packet from:
 AgentLayer currently supports two providers:
 
 **Claude Code** (`--provider claude`)  
-Requires `claude` on PATH. AgentLayer writes the context packet to `AGENT_CONTEXT.md` in the worktree and calls `claude --print`. Set `approvalMode: never` in `permissions.yml` to pass `--dangerously-skip-permissions`.
+Requires `claude` on PATH. AgentLayer writes the task and context packet to `CLAUDE.md` in the worktree — Claude reads this automatically on startup. By default the session is fully interactive: you see Claude's output live and can steer it. Set `approvalMode: never` in `permissions.yml` for a non-interactive automated run (`--dangerously-skip-permissions`).
 
 **Codex** (`--provider codex`)  
-Requires `codex` on PATH. AgentLayer writes the context packet to `AGENT_CONTEXT.md` and calls `codex`. Set `approvalMode: never` to pass `--full-auto`.
+Requires `codex` on PATH. AgentLayer writes the context packet to `AGENT_CONTEXT.md` and launches an interactive Codex session. Set `approvalMode: never` to pass `--full-auto`.
 
 ## Configuration
 
@@ -208,13 +214,39 @@ AgentLayer is honest about what it actually enforces:
 
 Worktrees isolate Git state. They do not isolate the host machine. The agent still runs with your user's permissions. Real containment requires `backend: devcontainer` (coming in a later release).
 
+## Shell completions
+
+Tab-complete run IDs, subcommands, and flag values.
+
+**bash** — add to `~/.bashrc`:
+```bash
+eval "$(agentlayer completion bash)"
+```
+
+**zsh** — add to `~/.zshrc`:
+```zsh
+eval "$(agentlayer completion zsh)"
+```
+
+**fish** — install once:
+```fish
+agentlayer completion fish > ~/.config/fish/completions/agentlayer.fish
+```
+
+**PowerShell** — add to `$PROFILE`:
+```powershell
+Invoke-Expression (agentlayer completion powershell)
+```
+
+After installing, `agentlayer diff <TAB>` completes run IDs, `--provider <TAB>` shows `claude codex`, `--status <TAB>` shows status values, and so on.
+
 ## Requirements
 
 - Node.js 18+
-- pnpm
 - git
 - `claude` CLI (for `--provider claude`) — [Claude Code](https://claude.ai/code)
 - `codex` CLI (for `--provider codex`) — [OpenAI Codex](https://github.com/openai/codex)
+- `gh` CLI (for `agentlayer pr`) — [GitHub CLI](https://cli.github.com)
 
 ## Design principles
 
@@ -229,8 +261,14 @@ Worktrees isolate Git state. They do not isolate the host machine. The agent sti
 - [x] `agentlayer init`
 - [x] `agentlayer memory init` — auto-generate memory docs with Claude
 - [x] `agentlayer run` with Claude and Codex adapters
-- [x] `agentlayer list`, `logs`, `diff`, `summary`, `check`, `rollback`, `clean`
-- [ ] `agentlayer pr` — push branch and open a GitHub PR via Octokit
+- [x] `agentlayer list` (`--status`, `--json`), `logs` (`--follow`), `diff`, `summary`, `check`, `rollback`, `clean`
+- [x] `agentlayer pr` — push branch and open a GitHub PR via `gh`
+- [x] `agentlayer merge` — merge run branch locally without GitHub
+- [x] `agentlayer rerun` — retry a run with the same (or overridden) task
+- [x] `agentlayer open` — open run worktree in your editor
+- [x] `agentlayer context` — dry-run to preview what the agent will receive
+- [x] `agentlayer memory show` — inspect current memory docs
+- [x] Shell completions for bash, zsh, fish, and PowerShell (`agentlayer completion <shell>`)
 - [ ] `devcontainer` backend for stronger isolation
 - [ ] Windows path handling polish
 

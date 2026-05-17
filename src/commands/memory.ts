@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { findRepoRoot } from '../git/git-client';
 import { agentDir, memoryDir } from '../util/paths';
 import { ConfigNotFoundError } from '../util/errors';
@@ -188,6 +188,73 @@ function parseOutput(output: string): Record<string, string> {
   return docs;
 }
 
+function runClaude(repoRoot: string, prompt: string, agentDirPath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('claude', ['--print', '--dangerously-skip-permissions'], {
+      cwd: repoRoot,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    const chunks: Buffer[] = [];
+    let errorOutput = '';
+    let timedOut = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGTERM');
+      reject(new Error('Claude timed out after 5 minutes.'));
+    }, 300_000);
+
+    child.stdin?.write(prompt, 'utf-8');
+    child.stdin?.end();
+
+    child.stdout?.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+      process.stdout.write('.');
+    });
+
+    child.stderr?.on('data', (chunk: Buffer) => {
+      errorOutput += chunk.toString();
+    });
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (timedOut) return;
+
+      process.stdout.write('\n');
+      const output = Buffer.concat(chunks).toString('utf-8');
+
+      // Accept output with expected tags even if exit code was non-zero
+      if (output.includes('<ARCHITECTURE>')) {
+        resolve(output);
+        return;
+      }
+
+      if (code !== 0) {
+        const debugPath = path.join(agentDirPath, 'memory-init-debug.txt');
+        fs.writeFileSync(
+          debugPath,
+          `exit code: ${code}\n\nstdout:\n${output}\n\nstderr:\n${errorOutput}`,
+          'utf-8'
+        );
+        reject(
+          new Error(
+            `Claude exited with code ${code}.\nDebug output saved to .agent/memory-init-debug.txt`
+          )
+        );
+        return;
+      }
+
+      resolve(output);
+    });
+
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(new Error(`Failed to spawn claude: ${err.message}`));
+    });
+  });
+}
+
 export interface MemoryInitOptions {
   force?: boolean;
 }
@@ -245,37 +312,19 @@ export async function memoryInitCommand(opts: MemoryInitOptions): Promise<void> 
   const context = gatherRepoContext(repoRoot);
   dim(`Context: ~${Math.round(context.length / 1024)}KB`);
 
-  // Single Claude call
+  // Single Claude call — use spawn so we can stream progress and
+  // avoid the execFileSync 120s default timeout on large prompts.
   info('Running Claude to analyze the codebase...');
-  dim('This usually takes 20-60 seconds.');
-  console.log('');
+  dim('This usually takes 30-90 seconds.');
+  process.stdout.write('  ');
 
   const prompt = buildPrompt(context);
 
   let rawOutput: string;
   try {
-    rawOutput = execFileSync('claude', ['--print', prompt], {
-      cwd: repoRoot,
-      encoding: 'utf-8',
-      timeout: 120000,
-      maxBuffer: 10 * 1024 * 1024,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    rawOutput = await runClaude(repoRoot, prompt, dir);
   } catch (err: any) {
-    const stderr = (err.stderr as string | undefined)?.trim() ?? '';
-    // claude --print exits non-zero if it encounters an error, but may still
-    // have written useful output to stdout
-    const stdout = (err.stdout as string | undefined)?.trim() ?? '';
-    if (stdout && stdout.includes('<ARCHITECTURE>')) {
-      rawOutput = stdout;
-    } else {
-      // Save debug output
-      const debugPath = path.join(dir, 'memory-init-debug.txt');
-      fs.writeFileSync(debugPath, stderr + '\n---\n' + stdout, 'utf-8');
-      throw new Error(
-        `Claude returned an error. Debug output saved to .agent/memory-init-debug.txt\n${stderr || err.message}`
-      );
-    }
+    throw new Error(err.message);
   }
 
   // Parse tagged sections
@@ -321,4 +370,36 @@ export async function memoryInitCommand(opts: MemoryInitOptions): Promise<void> 
   console.log('Then run a task:');
   console.log('  agentlayer run "your task" --provider claude');
   console.log('');
+}
+
+export async function memoryShowCommand(): Promise<void> {
+  const repoRoot = findRepoRoot(process.cwd());
+  const dir = agentDir(repoRoot);
+
+  if (!fs.existsSync(dir)) {
+    throw new ConfigNotFoundError(repoRoot);
+  }
+
+  const memDir = memoryDir(repoRoot);
+  const docNames = ['architecture', 'conventions', 'known-issues', 'decisions'];
+
+  let any = false;
+  for (const name of docNames) {
+    const fp = path.join(memDir, `${name}.md`);
+    if (!fs.existsSync(fp)) continue;
+    const content = fs.readFileSync(fp, 'utf-8').trim();
+    if (!content) continue;
+
+    if (any) console.log('\n' + '─'.repeat(60) + '\n');
+    console.log(`\x1b[1m.agent/memory/${name}.md\x1b[0m`);
+    console.log('');
+    console.log(content);
+    any = true;
+  }
+
+  if (!any) {
+    console.log('No memory docs found. Run:  agentlayer memory init');
+  } else {
+    console.log('');
+  }
 }

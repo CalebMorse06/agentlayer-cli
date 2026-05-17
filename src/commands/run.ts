@@ -147,40 +147,79 @@ export async function runCommand(task: string, opts: RunOptions): Promise<void> 
     approvalMode,
   });
 
-  appendJsonl(eventsPath, { t: now(), type: 'provider.starting', cmd: spawnSpec.cmd });
-  info(`Launching ${providerName}...`);
-  divider();
+  appendJsonl(eventsPath, { t: now(), type: 'provider.starting', cmd: spawnSpec.cmd, interactive: spawnSpec.interactive });
 
-  // 8. Spawn provider and stream output to terminal + log files
-  const stdoutLog = fs.createWriteStream(path.join(rDir, 'stdout.log'));
-  const stderrLog = fs.createWriteStream(path.join(rDir, 'stderr.log'));
+  // 8. Spawn provider
+  let exitCode: number;
 
-  const child = spawn(spawnSpec.cmd, spawnSpec.args, {
-    cwd: spawnSpec.cwd ?? wtPath,
-    env: { ...process.env, ...(spawnSpec.env ?? {}) },
-    stdio: ['inherit', 'pipe', 'pipe'],
-  });
+  if (spawnSpec.interactive) {
+    // Interactive mode: hand full control of the terminal to the agent.
+    // The developer steers the session live. We capture artifacts after exit.
+    info(`Launching ${providerName} interactively in the worktree.`);
+    info(`Worktree: ${pc.cyan(wtPath)}`);
+    divider();
 
-  child.stdout?.on('data', (chunk: Buffer) => {
-    stdoutLog.write(chunk);
-    process.stdout.write(chunk);
-  });
-
-  child.stderr?.on('data', (chunk: Buffer) => {
-    stderrLog.write(chunk);
-    process.stderr.write(chunk);
-  });
-
-  const exitCode = await new Promise<number>((resolve) => {
-    child.on('close', (code) => resolve(code ?? 0));
-    child.on('error', (err) => {
-      error(`Failed to launch ${providerName}: ${err.message}`);
-      resolve(1);
+    const child = spawn(spawnSpec.cmd, spawnSpec.args, {
+      cwd: spawnSpec.cwd ?? wtPath,
+      env: { ...process.env, ...(spawnSpec.env ?? {}) },
+      stdio: 'inherit',
     });
-  });
 
-  stdoutLog.end();
-  stderrLog.end();
+    exitCode = await new Promise<number>((resolve) => {
+      child.on('close', (code) => resolve(code ?? 0));
+      child.on('error', (err) => {
+        error(`Failed to launch ${providerName}: ${err.message}`);
+        resolve(1);
+      });
+    });
+
+    // Note in the log that this was an interactive session
+    fs.writeFileSync(
+      path.join(rDir, 'stdout.log'),
+      `(Interactive ${providerName} session — see diff.patch for what changed)\n`,
+      'utf-8'
+    );
+    fs.writeFileSync(path.join(rDir, 'stderr.log'), '', 'utf-8');
+  } else {
+    // Non-interactive mode: pipe stdout/stderr to terminal and log files simultaneously.
+    info(`Launching ${providerName} (non-interactive)...`);
+    divider();
+
+    const stdoutLog = fs.createWriteStream(path.join(rDir, 'stdout.log'));
+    const stderrLog = fs.createWriteStream(path.join(rDir, 'stderr.log'));
+
+    const child = spawn(spawnSpec.cmd, spawnSpec.args, {
+      cwd: spawnSpec.cwd ?? wtPath,
+      env: { ...process.env, ...(spawnSpec.env ?? {}) },
+      stdio: [spawnSpec.stdinData ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+    });
+
+    if (spawnSpec.stdinData) {
+      child.stdin?.write(spawnSpec.stdinData, 'utf-8');
+      child.stdin?.end();
+    }
+
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdoutLog.write(chunk);
+      process.stdout.write(chunk);
+    });
+
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderrLog.write(chunk);
+      process.stderr.write(chunk);
+    });
+
+    exitCode = await new Promise<number>((resolve) => {
+      child.on('close', (code) => resolve(code ?? 0));
+      child.on('error', (err) => {
+        error(`Failed to launch ${providerName}: ${err.message}`);
+        resolve(1);
+      });
+    });
+
+    stdoutLog.end();
+    stderrLog.end();
+  }
 
   divider();
   appendJsonl(eventsPath, { t: now(), type: 'provider.finished', exitCode });

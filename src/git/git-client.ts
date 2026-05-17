@@ -123,6 +123,22 @@ export function deleteBranch(repoRoot: string, branch: string, force = true): vo
   git(['branch', force ? '-D' : '-d', branch], repoRoot);
 }
 
+export function mergeBranch(
+  repoRoot: string,
+  branch: string,
+  opts: { squash?: boolean; message?: string } = {}
+): void {
+  const args = ['merge'];
+  if (opts.squash) {
+    args.push('--squash');
+  } else {
+    args.push('--no-ff');
+  }
+  if (opts.message && !opts.squash) args.push('-m', opts.message);
+  args.push(branch);
+  git(args, repoRoot);
+}
+
 export function diffAgainst(cwd: string, fromSha: string): string {
   try {
     return execFileSync('git', ['diff', fromSha, 'HEAD'], {

@@ -5,6 +5,8 @@ export interface SpawnSpec {
   args: string[];
   cwd: string;
   env?: Record<string, string>;
+  interactive: boolean;
+  stdinData?: string;
 }
 
 export interface ProviderRunInput {

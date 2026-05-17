@@ -3,15 +3,26 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ProviderAdapter, ProviderRunInput, SpawnSpec } from './types';
 
+function buildClaudeMdBlock(input: ProviderRunInput): string {
+  return [
+    `<!-- agentlayer:start run=${path.basename(input.runDir)} -->`,
+    `## Task`,
+    ``,
+    input.task,
+    ``,
+    `## Context`,
+    ``,
+    input.contextPacket,
+    `<!-- agentlayer:end -->`,
+  ].join('\n');
+}
+
 export const claudeAdapter: ProviderAdapter = {
   name: 'claude',
 
   async isAvailable(): Promise<boolean> {
     try {
-      execFileSync('claude', ['--version'], {
-        stdio: 'ignore',
-        timeout: 5000,
-      });
+      execFileSync('claude', ['--version'], { stdio: 'ignore', timeout: 5000 });
       return true;
     } catch {
       return false;
@@ -19,33 +30,37 @@ export const claudeAdapter: ProviderAdapter = {
   },
 
   buildInvocation(input: ProviderRunInput): SpawnSpec {
-    // Write context to a file in the worktree root so Claude can reference it.
-    // Claude Code already reads CLAUDE.md; we write our context there.
-    const claudeMdPath = path.join(input.worktreePath, 'AGENT_CONTEXT.md');
-    fs.writeFileSync(claudeMdPath, input.contextPacket, 'utf-8');
+    const claudeMdPath = path.join(input.worktreePath, 'CLAUDE.md');
 
-    // Claude Code non-interactive invocation via --print flag.
-    // The prompt references the context file and states the task.
-    const prompt = [
-      'Read AGENT_CONTEXT.md in the current directory for full context.',
-      '',
-      `Task: ${input.task}`,
-    ].join('\n');
-
-    const args: string[] = ['--print'];
-
-    // --dangerously-skip-permissions lets the agent run without approval prompts.
-    // Only enabled when the user has explicitly set approvalMode: "never".
-    if (input.approvalMode === 'never') {
-      args.push('--dangerously-skip-permissions');
+    // Prepend our session block to CLAUDE.md — Claude reads this automatically
+    // on startup. If a CLAUDE.md already exists we keep it below ours.
+    const agentBlock = buildClaudeMdBlock(input);
+    if (fs.existsSync(claudeMdPath)) {
+      const existing = fs.readFileSync(claudeMdPath, 'utf-8').trimStart();
+      fs.writeFileSync(claudeMdPath, agentBlock + '\n\n---\n\n' + existing, 'utf-8');
+    } else {
+      fs.writeFileSync(claudeMdPath, agentBlock + '\n', 'utf-8');
     }
 
-    args.push(prompt);
+    // approvalMode "never" → fully automated non-interactive run.
+    // Pipe the full agent block (task + context) via stdin so the prompt is not
+    // subject to shell argument-length limits and Claude receives full context.
+    // Everything else → interactive: the developer steers Claude live.
+    if (input.approvalMode === 'never') {
+      return {
+        cmd: 'claude',
+        args: ['--print', '--dangerously-skip-permissions'],
+        cwd: input.worktreePath,
+        interactive: false,
+        stdinData: agentBlock,
+      };
+    }
 
     return {
       cmd: 'claude',
-      args,
+      args: [],
       cwd: input.worktreePath,
+      interactive: true,
     };
   },
 };

@@ -3,13 +3,32 @@ import { findRepoRoot } from '../git/git-client';
 import { listRunRecords } from '../core/run-store';
 import { formatDuration } from '../util/time';
 
-export async function listCommand(): Promise<void> {
+export interface ListOptions {
+  json?: boolean;
+  status?: string;
+}
+
+export async function listCommand(opts: ListOptions = {}): Promise<void> {
   const repoRoot = findRepoRoot(process.cwd());
-  const records = listRunRecords(repoRoot);
+  let records = listRunRecords(repoRoot);
+
+  if (opts.status) {
+    const filter = opts.status.toLowerCase();
+    records = records.filter((r) => r.status === filter);
+  }
+
+  if (opts.json) {
+    console.log(JSON.stringify(records, null, 2));
+    return;
+  }
 
   if (records.length === 0) {
-    console.log('\nNo runs yet.\n');
-    console.log('Start one:  agentlayer run "your task" --provider claude\n');
+    if (opts.status) {
+      console.log(`\nNo runs with status "${opts.status}".\n`);
+    } else {
+      console.log('\nNo runs yet.\n');
+      console.log('Start one:  agentlayer run "your task" --provider claude\n');
+    }
     return;
   }
 
