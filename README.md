@@ -4,6 +4,15 @@ Run AI coding agents safely in your repository.
 
 AgentLayer is an open-source CLI that runs Claude Code and Codex in isolated Git worktrees with repo-local memory, permission policies, logs, diffs, checks, and rollback.
 
+> **Status:** early v0.1 CLI. AgentLayer is a local workflow tool, not a sandbox; use normal Git review and repository permissions before accepting agent changes.
+
+## Portfolio snapshot
+
+- **Input:** a scoped coding task plus repository-local context and permission/check configuration.
+- **Execution boundary:** one Git worktree and branch per task.
+- **Output:** inspectable task artifacts—context packet, stdout/stderr, diff, summary, and check results—kept under `.agent/runs/`.
+- **Review path:** inspect, rerun, open a pull request, merge, clean up, or roll back.
+
 ---
 
 ## What it is
@@ -255,6 +264,10 @@ After installing, `agentlayer diff <TAB>` completes run IDs, `--provider <TAB>` 
 - Inspectable by default: every artifact is a plain file you can read, diff, or copy
 - Boring code: no magic, no daemons, no hidden state
 - No dashboard in v0.1
+
+## Verification
+
+`pnpm build` compiles the TypeScript CLI. An automated test suite is not included yet; validate provider workflows in a disposable Git repository before using them on an important branch.
 
 ## Roadmap
 
